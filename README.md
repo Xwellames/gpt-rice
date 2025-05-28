@@ -20,9 +20,7 @@
 
 ## 🚀 Быстрый старт
 
-1. Склонируй репозиторий:
-   git clone https://github.com/Xwellames/gpt-rice.git
-   cd hyperland-redblack
-   chmod +x hyperland-redblack.sh
-   ./hyperland-redblack.sh
-
+1. Склонируй репозиторий: git clone https://github.com/Xwellames/gpt-rice.git
+2. cd gpt-rice
+3. chmod +x hyperland-redblack.sh
+4. ./install.sh
