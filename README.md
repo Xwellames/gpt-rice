@@ -22,5 +22,5 @@
 
 1. Склонируй репозиторий: git clone https://github.com/Xwellames/gpt-rice.git
 2. cd gpt-rice
-3. chmod +x hyperland-redblack.sh
+3. chmod +x install.sh
 4. ./install.sh
