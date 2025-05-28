@@ -1,143 +1,234 @@
 #!/bin/bash
 
-set -e
+# Проверяем, что скрипт запущен от рута
+if [ "$EUID" -ne 0 ]; then
+    echo "Запусти скрипт от имени root (sudo)!"
+    exit 1
+fi
 
-# 1. Установка необходимых пакетов
-sudo pacman -Syu --noconfirm
-sudo pacman -S --noconfirm \
-  hyprland waybar wofi kitty swww grim slurp \
-  pipewire wireplumber xdg-desktop-portal-hyprland \
-  qt5-wayland qt6-wayland qt5ct qt6ct \
-  lxappearance nwg-look papirus-icon-theme \
-  ttf-jetbrains-mono-nerd unzip curl git
+# Обновляем систему и ставим необходимые пакеты
+echo "Обновляем систему и устанавливаем пакеты..."
+pacman -Syu --noconfirm
+pacman -S --noconfirm hyprland waybar kitty rofi dunst xdg-desktop-portal-hyprland \
+    ttf-jetbrains-mono ttf-font-awesome sddm polkit-gnome \
+    firefox thunar grim slurp wl-clipboard
 
-# 2. Создание директорий
-mkdir -p ~/.config/hypr ~/.config/waybar ~/.config/wofi ~/.config/gtk-3.0 ~/.config/gtk-4.0 ~/.fonts ~/.icons ~/.themes ~/Pictures
+# Устанавливаем AUR-хелпер (yay) для установки дополнительных пакетов
+if ! command -v yay &> /dev/null; then
+    echo "Устанавливаем yay..."
+    pacman -S --noconfirm git base-devel
+    git clone https://aur.archlinux.org/yay.git /tmp/yay
+    cd /tmp/yay
+    makepkg -si --noconfirm
+    cd -
+fi
 
-# 3. Установка обоев (красно-чёрный стиль)
-curl -Lo ~/Pictures/wallpaper.png "https://w.wallhaven.cc/full/2y/wallhaven-2y3g7k.png"
+# Устанавливаем тему для SDDM (для красивого входа)
+echo "Настраиваем SDDM с темой..."
+yay -S --noconfirm sddm-theme-tokyo-night
+mkdir -p /etc/sddm.conf.d
+echo -e "[Theme]\nCurrent=tokyo-night" > /etc/sddm.conf.d/theme.conf
+systemctl enable sddm
 
-# 4. Конфиг Hyprland
-cat > ~/.config/hypr/hyprland.conf <<EOF
-exec-once = swww init
-exec-once = swww img ~/Pictures/wallpaper.png
-exec-once = waybar
-exec-once = wofi &
-exec-once = wireplumber
-exec-once = sleep 1 && hyprctl setcursor Bibata-Original-Classic 24
+# Создаем директории для конфигов
+echo "Создаем конфигурации для Hyprland..."
+mkdir -p ~/.config/{hypr,waybar,kitty,rofi,dunst}
 
-$mod = SUPER
+# Конфиг Hyprland (красно-черный минимализм)
+cat << 'EOF' > ~/.config/hypr/hyprland.conf
+# Основные настройки Hyprland
+monitor=,preferred,auto,1
+exec-once=waybar & dunst & polkit-gnome-authentication-agent-1
 
-bind = $mod, RETURN, exec, kitty
-bind = $mod, Q, killactive,
-bind = $mod, SPACE, exec, wofi --show drun
-bind = $mod, ESCAPE, exec, hyprctl reload
-bind = $mod SHIFT, R, exec, pkill waybar && waybar &
-bind = , Print, exec, grim -g "$(slurp)" - | wl-copy
+# Горячие клавиши
+bind=SUPER,Return,exec,kitty
+bind=SUPER,Q,killactive
+bind=SUPER,M,exit
+bind=SUPER,E,exec,thunar
+bind=SUPER,F,exec,firefox
+bind=SUPER,D,exec,rofi -show drun
+bind=SUPER,Print,exec,grim - | wl-copy
 
-bind = $mod, 1, workspace, 1
-bind = $mod, 2, workspace, 2
-bind = $mod, 3, workspace, 3
-bind = $mod, 4, workspace, 4
-bind = $mod, 5, workspace, 5
-bind = $mod, 6, workspace, 6
-bind = $mod, 7, workspace, 7
-bind = $mod, 8, workspace, 8
-bind = $mod, 9, workspace, 9
-bind = $mod SHIFT, 1, movetoworkspace, 1
-bind = $mod SHIFT, 2, movetoworkspace, 2
-bind = $mod SHIFT, 3, movetoworkspace, 3
-bind = $mod SHIFT, 4, movetoworkspace, 4
-bind = $mod SHIFT, 5, movetoworkspace, 5
-bind = $mod SHIFT, 6, movetoworkspace, 6
-bind = $mod SHIFT, 7, movetoworkspace, 7
-bind = $mod SHIFT, 8, movetoworkspace, 8
-bind = $mod SHIFT, 9, movetoworkspace, 9
-
-input {
-    kb_layout = us
-}
-
+# Стилизация окон
 general {
-    gaps_in = 5
-    gaps_out = 15
-    border_size = 2
-    col.active_border = rgba(ff0000ee)
-    col.inactive_border = rgba(000000aa)
+    gaps_in=5
+    gaps_out=10
+    border_size=2
+    col.active_border=rgb(ff0000) rgb(000000) 45deg
+    col.inactive_border=rgb(333333)
 }
 
 decoration {
-    rounding = 10
-    blur {
-        enabled = true
-        size = 5
-        passes = 3
+    rounding=5
+    drop_shadow=true
+    shadow_range=10
+    shadow_render_power=3
+    col.shadow=rgb(ff0000)
+}
+
+# Анимации
+animations {
+    enabled=true
+    bezier=overshot,0.05,0.9,0.1,1.05
+    animation=windows,1,5,overshot
+    animation=border,1,10,default
+    animation=fade,1,7,default
+}
+
+# Входные устройства
+input {
+    kb_layout=us,ru
+    kb_options=grp:alt_shift_toggle
+    follow_mouse=1
+    touchpad {
+        natural_scroll=true
     }
 }
-
-animations {
-    enabled = true
-    bezier = myBezier, 0.05, 0.9, 0.1, 1.0
-    animation = windows, 1, 7, myBezier
-    animation = fade, 1, 7, myBezier
-    animation = border, 1, 7, default
-    animation = workspaces, 1, 7, default
-}
 EOF
 
-# 5. Конфиг Waybar
-cat > ~/.config/waybar/config <<EOF
+# Конфиг Waybar (панель в красно-черном стиле)
+cat << 'EOF' > ~/.config/waybar/config
 {
-  "layer": "top",
-  "position": "top",
-  "modules-left": ["workspaces"],
-  "modules-center": ["clock"],
-  "modules-right": ["pulseaudio", "tray"],
-
-  "workspaces": {},
-  "clock": {
-    "format": "%a %d %b %H:%M"
-  },
-  "pulseaudio": {
-    "format": "VOL: {volume}%"
-  },
-  "tray": {}
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "modules-left": ["hyprland/workspaces"],
+    "modules-center": ["clock"],
+    "modules-right": ["cpu", "memory", "network", "tray"],
+    "hyprland/workspaces": {
+        "format": "{icon}",
+        "format-icons": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+        }
+    },
+    "clock": {
+        "format": "{:%H:%M}",
+        "tooltip-format": "{:%Y-%m-%d | %H:%M}"
+    },
+    "cpu": {
+        "format": "CPU {usage}%"
+    },
+    "memory": {
+        "format": "MEM {}%"
+    },
+    "network": {
+        "format-wifi": "{essid} ({signalStrength}%)",
+        "format-ethernet": "ETH {ifname}",
+        "format-disconnected": "Disconnected"
+    },
+    "tray": {
+        "spacing": 10
+    }
 }
 EOF
 
-cat > ~/.config/waybar/style.css <<EOF
+# Стили Waybar
+cat << 'EOF' > ~/.config/waybar/style.css
 * {
-  border: none;
-  border-radius: 0;
-  font-family: JetBrainsMono Nerd Font;
-  font-size: 14px;
-  padding: 0 10px;
-  color: #ff5555;
-  background-color: #111111;
+    font-family: JetBrains Mono, FontAwesome;
+    font-size: 14px;
+    color: #ffffff;
+}
+
+window#waybar {
+    background: #1a1a1a;
+    border-bottom: 2px solid #ff0000;
+}
+
+#workspaces button {
+    padding: 0 5px;
+    background: transparent;
+    color: #ff0000;
+    border: none;
+}
+
+#workspaces button:hover {
+    background: #ff0000;
+    color: #000000;
+}
+
+#clock, #cpu, #memory, #network, #tray {
+    padding: 0 10px;
+    background: #1a1a1a;
+    color: #ff0000;
 }
 EOF
 
-# 6. Конфиг Wofi
-cat > ~/.config/wofi/config <<EOF
-prompt=Run:
-show=drun
-drun-show-actions=false
+# Конфиг Kitty (терминал)
+cat << 'EOF' > ~/.config/kitty/kitty.conf
+font_family JetBrains Mono
+font_size 12
+background #1a1a1a
+foreground # okien
+cursor_color #ff0000
+selection_background #ff0000
+selection_foreground #000000
+scrollback_lines 10000
+enable_audio_bell no
 EOF
 
-# 7. GTK иконки и тема (через lxappearance/nwg-look)
-gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark'
-gsettings set org.gnome.desktop.interface icon-theme 'Papirus-Dark'
-gsettings set org.gnome.desktop.interface font-name 'JetBrainsMono Nerd Font 11'
+# Конфиг Rofi
+cat << 'EOF' > ~/.config/rofi/config.rasi
+configuration {
+    font: "JetBrains Mono 12";
+    show-icons: true;
+    icon-theme: "Papirus";
+    display-drun: "Apps";
+    display-window: "Windows";
+    display-combi: "All";
+}
+window {
+    background-color: #1a1a1a;
+    text-color: #ff0000;
+    border: 2px;
+    border-color: #ff0000;
+}
+entry {
+    background-color: #1a1a1a;
+    text-color: #ffffff;
+}
+element {
+    background-color: #1a1a1a;
+    text-color: #ff0000;
+}
+element-icon {
+    size: 24px;
+}
+EOF
 
-# 8. Добавляем Hyprland в автозапуск
-if ! grep -q "exec Hyprland" ~/.zprofile 2>/dev/null; then
-  echo "exec Hyprland" >> ~/.zprofile
-fi
+# Конфиг Dunst (уведомления)
+cat << 'EOF' > ~/.config/dunst/dunstrc
+[global]
+    font = JetBrains Mono 10
+    frame_color = "#ff0000"
+    background = "#1a1a1a"
+    foreground = "#ff0000"
+    timeout = 5
+    geometry = "300x5-30+20"
+    icon_position = left
+    max_icon_size = 32
+EOF
 
-# 9. Предложение перезагрузки
-read -rp $'\n🎉 Установка завершена! Перезагрузить систему сейчас? (y/N): ' answer
-if [[ "$answer" =~ ^[Yy]$ ]]; then
-  reboot
-else
-  echo "🚀 Просто перезагрузи позже, чтобы войти в Hyprland."
-fi
+# Установка обоев (пример, замени путь на свои обои)
+echo "Скачай обои в красно-черном стиле и положи их в ~/.wallpaper.png"
+cat << 'EOF' > ~/.config/hypr/hyprpaper.conf
+preload = ~/.wallpaper.png
+wallpaper = ,~/.wallpaper.png
+EOF
+
+# Делаем скрипт исполняемым
+chmod +x ~/.config/hypr/hyprland.conf
+chmod +x ~/.config/waybar/config
+chmod +x ~/.config/waybar/style.css
+chmod +x ~/.config/kitty/kitty.conf
+chmod +x ~/.config/rofi/config.rasi
+chmod +x ~/.config/dunst/dunstrc
+chmod +x ~/.config/hypr/hyprpaper.conf
+
+echo "Установка завершена! Перезагрузи систему и выбери Hyprland в SDDM."
+echo "Обои положи в ~/.wallpaper.png (PNG-файл в красно-черном стиле)."
+EOF
